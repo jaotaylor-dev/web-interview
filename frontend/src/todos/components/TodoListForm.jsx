@@ -1,52 +1,112 @@
-import React, { useState } from 'react'
-import { TextField, Card, CardContent, CardActions, Button, Typography } from '@mui/material'
+import React, { useEffect, useRef, useState } from 'react'
+import {
+  TextField,
+  Card,
+  CardContent,
+  CardActions,
+  Button,
+  Typography,
+  Checkbox,
+  Chip,
+} from '@mui/material'
 import DeleteIcon from '@mui/icons-material/Delete'
 import AddIcon from '@mui/icons-material/Add'
 
+const getDueLabel = (dueDate) => {
+  if (!dueDate) return null
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const [year, month, day] = dueDate.split('-').map(Number)
+  const due = new Date(year, month - 1, day)
+  const diffDays = Math.round((due - now) / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) return `${Math.abs(diffDays)}d overdue`
+  if (diffDays === 0) return 'Due today'
+  return `${diffDays}d remaining`
+}
+
 export const TodoListForm = ({ todoList, saveTodoList }) => {
   const [todos, setTodos] = useState(todoList.todos)
+  const isFirstRender = useRef(true)
 
-  const handleSubmit = (event) => {
-    event.preventDefault()
-    saveTodoList(todoList.id, { todos })
-  }
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      saveTodoList(todoList.id, { todos })
+    }, 500)
+
+    return () => clearTimeout(timeout)
+  }, [todos, saveTodoList, todoList.id])
 
   return (
     <Card sx={{ margin: '0 1rem' }}>
       <CardContent>
         <Typography component='h2'>{todoList.title}</Typography>
-        <form
-          onSubmit={handleSubmit}
-          style={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}
-        >
-          {todos.map((name, index) => (
+        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+          {todos.map((todo, index) => (
             <div key={index} style={{ display: 'flex', alignItems: 'center' }}>
-              <Typography sx={{ margin: '8px' }} variant='h6'>
+              <Typography sx={{ margin: '8px', width: '1.5rem', flexShrink: 0 }} variant='h6'>
                 {index + 1}
               </Typography>
               <TextField
                 sx={{ flexGrow: 1, marginTop: '1rem' }}
                 label='What to do?'
-                value={name}
+                value={todo.text}
                 onChange={(event) => {
-                  setTodos([
-                    // immutable update
-                    ...todos.slice(0, index),
-                    event.target.value,
-                    ...todos.slice(index + 1),
-                  ])
+                  const updated = { ...todo, text: event.target.value }
+                  setTodos([...todos.slice(0, index), updated, ...todos.slice(index + 1)])
+                }}
+              />
+              <TextField
+                type='date'
+                size='small'
+                label='Due date'
+                value={todo.dueDate || ''}
+                onChange={(event) => {
+                  const updated = { ...todo, dueDate: event.target.value || null }
+                  setTodos([...todos.slice(0, index), updated, ...todos.slice(index + 1)])
+                }}
+                InputLabelProps={{ shrink: true }}
+                sx={{ width: '11rem', flexShrink: 0, marginTop: '1rem', marginLeft: '0.5rem' }}
+              />
+              <div
+                style={{
+                  width: '7rem',
+                  flexShrink: 0,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  marginTop: '1rem',
+                  marginLeft: '0.5rem',
+                }}
+              >
+                {(() => {
+                  const label = getDueLabel(todo.dueDate)
+                  return label ? (
+                    <Chip
+                      label={label}
+                      size='small'
+                      color={label.includes('overdue') ? 'error' : 'default'}
+                    />
+                  ) : null
+                })()}
+              </div>
+              <Checkbox
+                checked={todo.completed}
+                onChange={() => {
+                  const updated = { ...todo, completed: !todo.completed }
+                  setTodos([...todos.slice(0, index), updated, ...todos.slice(index + 1)])
                 }}
               />
               <Button
-                sx={{ margin: '8px' }}
+                sx={{ flexShrink: 0 }}
                 size='small'
                 color='secondary'
                 onClick={() => {
-                  setTodos([
-                    // immutable delete
-                    ...todos.slice(0, index),
-                    ...todos.slice(index + 1),
-                  ])
+                  setTodos([...todos.slice(0, index), ...todos.slice(index + 1)])
                 }}
               >
                 <DeleteIcon />
@@ -58,16 +118,13 @@ export const TodoListForm = ({ todoList, saveTodoList }) => {
               type='button'
               color='primary'
               onClick={() => {
-                setTodos([...todos, ''])
+                setTodos([...todos, { text: '', completed: false, dueDate: null }])
               }}
             >
               Add Todo <AddIcon />
             </Button>
-            <Button type='submit' variant='contained' color='primary'>
-              Save
-            </Button>
           </CardActions>
-        </form>
+        </div>
       </CardContent>
     </Card>
   )
